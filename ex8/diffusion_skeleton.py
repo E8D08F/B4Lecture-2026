@@ -12,7 +12,13 @@ from typing import Any, Dict, Literal
 
 import torch
 import torch.nn as nn
+from torch import Tensor, randint, randn_like, sqrt
 from tqdm import tqdm
+
+
+def expand(x: Tensor) -> Tensor:
+    """Make (B,) coefficients broadcast over (B, C, H, W) images."""
+    return x[:, *[None] * 3]
 
 
 class DiffusionModel(nn.Module):
@@ -86,8 +92,11 @@ class DiffusionModel(nn.Module):
 
         参照: "Denoising Diffusion Probabilistic Models" Eq. (4)
         """
-        # TODO
-        raise NotImplementedError("DiffusionModel.q_sample の TODO を実装してください")
+
+        # q(x_t | x_0) = N(x_t; sqrt(alpha_bar_t) x_0, (1 - alpha_bar_t) I)
+        alpha_ = expand(self.get_buffer("alpha_prod")[t])
+        mean = sqrt(alpha_) * x0
+        return mean + sqrt(1 - alpha_) * noise
 
     def p_sample(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """逆拡散過程（Reverse process）: x_t から x_{t-1} を推定する。
@@ -101,8 +110,17 @@ class DiffusionModel(nn.Module):
 
         参照: "Denoising Diffusion Probabilistic Models" Algorithm 2, Eq. (11)
         """
-        # TODO
-        raise NotImplementedError("DiffusionModel.p_sample の TODO を実装してください")
+        beta = expand(self.get_buffer("beta")[t])
+        alpha = expand(self.get_buffer("alpha")[t])
+        alpha_ = expand(self.get_buffer("alpha_prod")[t])
+        eps = self.forward(x, t)
+        mean = (x - beta / sqrt(1 - alpha_) * eps) / sqrt(alpha)
+
+        # Final step: return the denoised estimate
+        if t[0].item() == 0:
+            return mean
+        z = randn_like(x)
+        return mean + sqrt(beta) * z
 
     def training_step(self, images: torch.Tensor) -> torch.Tensor:
         """1バッチの損失を計算する。
@@ -115,14 +133,18 @@ class DiffusionModel(nn.Module):
 
         参照: "Denoising Diffusion Probabilistic Models" Algorithm 1
         """
-        # TODO
-        raise NotImplementedError(
-            "DiffusionModel.training_step の TODO を実装してください"
-        )
+        x0 = images
+        batch_size = x0.size(0)
+        t = randint(0, self.num_timesteps, (batch_size,), device=x0.device)
+        noise = randn_like(x0)
+        xt = self.q_sample(x0, t, noise)
+        noise_pred = self.forward(xt, t)
+        loss = self.criterion(noise_pred, noise)
+        return loss
 
     def generate(self, num_timesteps: int, shape: tuple) -> torch.Tensor:
         """サンプルを生成する。（実装済み・変更不要）"""
-        device = self.alpha.device
+        device = self.get_buffer("alpha").device
         x = torch.randn(shape, device=device)
         for step in tqdm(range(num_timesteps - 1, -1, -1)):
             t = torch.full((x.size(0),), step, dtype=torch.long, device=device)

@@ -27,6 +27,8 @@ def make_model():
         down_block_types=["DownBlock2D"],
         up_block_types=["UpBlock2D"],
         block_out_channels=[16],
+        # MARK: Required because GroupNorm groups must divide the 16 channels.
+        norm_num_groups=8,
     )
     return DiffusionModel(
         model=unet,
