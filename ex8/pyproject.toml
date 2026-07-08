@@ -1,0 +1,16 @@
+[project]
+name = "ex8"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "datasets>=5.0.0",
+    "diffusers>=0.39.0",
+    "hydra-core>=1.3.4",
+    "matplotlib>=3.11.0",
+    "omegaconf>=2.3.1",
+    "tensorboard>=2.21.0",
+    "torch>=2.12.1",
+    "torchvision>=0.27.1",
+]
